@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: instagram-telegram-pipeline
+    runtime: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 3000
+      - key: TELEGRAM_BOT_TOKEN
+        scope: run
+      - key: ROUTINE_API_ENDPOINT
+        scope: run
+      - key: ROUTINE_BEARER_TOKEN
+        scope: run

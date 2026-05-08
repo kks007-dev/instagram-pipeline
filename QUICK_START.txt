@@ -1,0 +1,137 @@
+INSTAGRAM-TO-GOOGLE-TASKS PIPELINE - QUICK START
+================================================
+
+Files Created:
+- server.js                 → Express webhook server
+- package.json             → Node.js dependencies
+- .env.example             → Environment variables template
+- routine-prompt.md        → Claude Code Routine system prompt
+- railway.json             → Railway deployment config
+- render.yaml              → Render deployment config
+- Dockerfile               → Docker container config
+- .gitignore               → Git ignore patterns
+- .dockerignore            → Docker ignore patterns
+- example-test-payload.json → Test payload for Routine API
+- test-routine-api.sh      → Bash script to test Routine API
+- SETUP.md                 → Complete 6-step setup guide
+- ARCHITECTURE.md          → Technical deep dive
+- README.md                → Overview & features
+- QUICK_START.txt          → This file
+
+QUICK 5-STEP SETUP (see SETUP.md for detailed guide):
+
+1. TELEGRAM BOT
+   → Chat with @BotFather
+   → /newbot → get BOT_TOKEN
+
+2. ASSEMBLYAI
+   → Sign up at assemblyai.com
+   → Get API_KEY from dashboard
+
+3. CLAUDE CODE ROUTINE
+   → Visit claude.ai/code/routines
+   → Create "Instagram Video Analyzer"
+   → Paste routine-prompt.md as system prompt
+   → Add Google Tasks connector (OAuth)
+   → Enable API trigger → copy ENDPOINT & TOKEN
+
+4. DEPLOY WEBHOOK SERVER
+   Railway:  railway.app → New Project → Connect GitHub
+   Render:   render.com → New Web Service → Connect GitHub
+   Local:    npm install && npm start (use ngrok for tunnel)
+
+5. REGISTER TELEGRAM WEBHOOK
+   curl -X POST https://api.telegram.org/bot{TOKEN}/setWebhook \
+     -H "Content-Type: application/json" \
+     -d '{"url": "https://your-deployed-url.com/webhook"}'
+
+ENVIRONMENT VARIABLES (copy .env.example → .env):
+- TELEGRAM_BOT_TOKEN         (from BotFather)
+- ROUTINE_API_ENDPOINT       (from claude.ai/code/routines)
+- ROUTINE_BEARER_TOKEN       (from Routine API trigger settings)
+- ASSEMBLYAI_API_KEY         (in Routine settings, not webhook server)
+- PORT                       (default: 3000)
+- NODE_ENV                   (production/development)
+
+TESTING:
+1. Use example-test-payload.json with test-routine-api.sh
+2. Set environment variables: ROUTINE_API_ENDPOINT, ROUTINE_BEARER_TOKEN
+3. Run: ./test-routine-api.sh example-test-payload.json
+4. Check Google Tasks for new task within 2-5 minutes
+
+DATA FLOW:
+Instagram/Telegram Video
+    ↓
+Telegram Bot API
+    ↓
+Webhook Server (Node.js) - /webhook endpoint
+    ↓
+Claude Code Routine API Trigger
+    ↓
+• AssemblyAI Transcription (API call from Routine)
+• Claude Analysis (Routine process)
+• Google Tasks Creation (via connector)
+
+COSTS:
+- Telegram Bot: FREE (unlimited)
+- Claude Code Routine: Included (part of Claude subscription)
+- AssemblyAI: FREE (600 min/month) or ~$0.17/min
+- Google Tasks: FREE (unlimited)
+- Railway: ~$7/month OR FREE tier
+- Render: ~$7/month OR FREE tier
+
+KEY FEATURES:
+✓ Fully cloud-based (no desktop needed)
+✓ Automatic video transcription (AssemblyAI)
+✓ Intelligent analysis (Claude)
+✓ Structured JSON output
+✓ Direct Google Tasks integration
+✓ Error handling with task logging
+✓ Scales to multiple videos
+✓ One-click deployment (Railway/Render)
+
+FILES TO READ:
+1. README.md          → Overview & architecture
+2. SETUP.md           → Step-by-step installation
+3. routine-prompt.md  → Claude Code Routine instructions
+4. ARCHITECTURE.md    → Technical deep dive
+
+COMMON ISSUES & FIXES:
+
+"Webhook not receiving messages"
+→ Check: curl https://your-url/health
+→ Verify: curl https://api.telegram.org/bot{TOKEN}/getWebhookInfo
+
+"Routine not triggering"
+→ Check ROUTINE_API_ENDPOINT & ROUTINE_BEARER_TOKEN are correct
+→ Test: ./test-routine-api.sh example-test-payload.json
+→ Review Claude Code Routine logs
+
+"No Google Tasks created"
+→ Verify Google Tasks connector is authenticated in Routine settings
+→ Check that Google account is accessible
+→ Review Routine logs for Google Tasks API errors
+
+"Transcription fails"
+→ Verify AssemblyAI API key is set in Routine environment
+→ Check remaining API quota (free: 600 min/month)
+→ Ensure video file isn't corrupted
+
+NEXT STEPS:
+1. Read SETUP.md for detailed step-by-step instructions
+2. Deploy webhook server to Railway or Render
+3. Register Telegram webhook
+4. Send test video to bot
+5. Check Google Tasks for results within 2-5 minutes
+6. Customize routine-prompt.md for your specific needs
+
+SUPPORT RESOURCES:
+- Telegram Bot API: https://core.telegram.org/bots/api
+- Claude Code Docs: https://claude.ai/code/docs
+- AssemblyAI Docs: https://www.assemblyai.com/docs
+- Google Tasks API: https://developers.google.com/tasks
+
+---
+Created: May 2026
+Status: Production Ready
+Version: 1.0.0

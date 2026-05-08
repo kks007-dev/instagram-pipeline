@@ -1,0 +1,36 @@
+{
+  "$schema": "https://railway.app/railway.schema.json",
+  "build": {
+    "builder": "heroku.buildpacks",
+    "buildpacks": [
+      "heroku/nodejs"
+    ]
+  },
+  "deploy": {
+    "startCommand": "npm start",
+    "restartPolicyType": "on_failure",
+    "restartPolicyMaxRetries": 5
+  },
+  "variables": {
+    "TELEGRAM_BOT_TOKEN": {
+      "description": "Your Telegram bot token from BotFather",
+      "value": ""
+    },
+    "ROUTINE_API_ENDPOINT": {
+      "description": "Claude Code Routine API trigger endpoint (https://claude.ai/code/routines)",
+      "value": ""
+    },
+    "ROUTINE_BEARER_TOKEN": {
+      "description": "Bearer token for Routine API authentication",
+      "value": ""
+    },
+    "NODE_ENV": {
+      "description": "Node environment",
+      "value": "production"
+    },
+    "PORT": {
+      "description": "Server port",
+      "value": "3000"
+    }
+  }
+}
