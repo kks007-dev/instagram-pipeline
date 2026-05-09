@@ -34,20 +34,46 @@ app.post('/webhook', async (req, res) => {
  * Process incoming Telegram message
  * Extracts video, downloads it, and triggers Claude Code Routine
  */
+const INSTAGRAM_REGEX = /https?:\/\/(www\.)?instagram\.com\/(p|reel|tv)\/[A-Za-z0-9_-]+\/?/;
+
 async function processMessage(update) {
   try {
-    // Check if this is a message with a video
-    if (!update.message || !update.message.video) {
-      console.log('No video in message, skipping');
-      return;
-    }
+    if (!update.message) return;
 
     const message = update.message;
-    const video = message.video;
-    const caption = message.caption || '';
     const messageId = message.message_id;
     const timestamp = new Date(message.date * 1000).toISOString();
     const chatId = message.chat.id;
+
+    // Handle Instagram links in text or caption
+    const text = message.text || message.caption || '';
+    const instagramMatch = text.match(INSTAGRAM_REGEX);
+
+    if (instagramMatch) {
+      const instagramUrl = instagramMatch[0];
+      console.log(`Processing Instagram link from chat ${chatId}: ${instagramUrl}`);
+
+      await triggerClaudeRoutine({
+        video_url: instagramUrl,
+        caption: text,
+        message_id: messageId,
+        timestamp: timestamp,
+        chat_id: chatId,
+        file_id: null
+      });
+
+      console.log('Successfully triggered Claude Code Routine for Instagram link');
+      return;
+    }
+
+    // Handle direct video file uploads
+    if (!update.message.video) {
+      console.log('No video or Instagram link in message, skipping');
+      return;
+    }
+
+    const video = message.video;
+    const caption = message.caption || '';
 
     console.log(`Processing video from chat ${chatId}, message ${messageId}`);
     console.log(`Caption: ${caption}`);
