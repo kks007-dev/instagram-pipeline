@@ -166,13 +166,7 @@ async function triggerClaudeRoutine(payload) {
   }
 
   const triggerPayload = {
-    video_url: payload.video_url,
-    caption: payload.caption,
-    message_id: payload.message_id,
-    timestamp: payload.timestamp,
-    chat_id: payload.chat_id,
-    file_id: payload.file_id,
-    trigger_id: uuidv4()
+    text: `Analyze this Instagram video: ${payload.video_url}\nCaption: ${payload.caption || 'none'}\nTimestamp: ${payload.timestamp}`
   };
 
   console.log('Triggering Routine with payload:', JSON.stringify(triggerPayload, null, 2));
@@ -181,7 +175,9 @@ async function triggerClaudeRoutine(payload) {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${bearerToken}`
+      'Authorization': `Bearer ${bearerToken}`,
+      'anthropic-version': '2023-06-01',
+      'anthropic-beta': 'experimental-cc-routine-2026-04-01'
     },
     body: JSON.stringify(triggerPayload)
   });
