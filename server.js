@@ -53,8 +53,12 @@ async function processMessage(update) {
       const instagramUrl = instagramMatch[0];
       console.log(`Processing Instagram link from chat ${chatId}: ${instagramUrl}`);
 
+      // Resolve Instagram URL to direct MP4 via RapidAPI
+      const directUrl = await resolveInstagramUrl(instagramUrl);
+      console.log(`Resolved to direct URL: ${directUrl}`);
+
       await triggerClaudeRoutine({
-        video_url: instagramUrl,
+        video_url: directUrl,
         caption: text,
         message_id: messageId,
         timestamp: timestamp,
@@ -103,6 +107,35 @@ async function processMessage(update) {
     console.error('Error in processMessage:', error);
     // Don't throw - we already returned 200 to Telegram
   }
+}
+
+/**
+ * Resolve Instagram URL to direct MP4 download URL via RapidAPI
+ */
+async function resolveInstagramUrl(instagramUrl) {
+  const rapidApiKey = process.env.RAPIDAPI_KEY;
+  if (!rapidApiKey) throw new Error('RAPIDAPI_KEY not set');
+
+  const encodedUrl = encodeURIComponent(instagramUrl);
+  const response = await fetch(
+    `https://instagram-post-reels-stories-downloader-api.p.rapidapi.com/instagram/?url=${encodedUrl}`,
+    {
+      method: 'GET',
+      headers: {
+        'x-rapidapi-host': 'instagram-post-reels-stories-downloader-api.p.rapidapi.com',
+        'x-rapidapi-key': rapidApiKey
+      }
+    }
+  );
+
+  if (!response.ok) throw new Error(`RapidAPI failed: ${response.status}`);
+
+  const data = await response.json();
+  if (!data.status || !data.result || !data.result[0]) {
+    throw new Error('No video URL returned from RapidAPI');
+  }
+
+  return data.result[0].url;
 }
 
 /**
