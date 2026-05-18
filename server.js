@@ -135,7 +135,29 @@ async function resolveInstagramUrl(instagramUrl) {
     throw new Error('No video URL returned from RapidAPI');
   }
 
-  return data.result[0].url;
+  const cdnUrl = data.result[0].url;
+
+  // Download and re-upload to transfer.sh so the URL is not IP-locked
+  console.log('Downloading video to re-host...');
+  const videoResponse = await fetch(cdnUrl);
+  if (!videoResponse.ok) throw new Error(`Failed to download video: ${videoResponse.status}`);
+
+  const videoBuffer = await videoResponse.buffer();
+
+  const uploadResponse = await fetch('https://transfer.sh/video.mp4', {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'video/mp4',
+      'Max-Days': '1'
+    },
+    body: videoBuffer
+  });
+
+  if (!uploadResponse.ok) throw new Error(`transfer.sh upload failed: ${uploadResponse.status}`);
+
+  const publicUrl = await uploadResponse.text();
+  console.log(`Re-hosted at: ${publicUrl.trim()}`);
+  return publicUrl.trim();
 }
 
 /**

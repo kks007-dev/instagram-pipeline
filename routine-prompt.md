@@ -57,8 +57,8 @@ Produce a JSON object matching this exact schema:
 ```
 
 ### 5. Send via Gmail
-- Use the Gmail connector (OAuth — connected in Routine settings)
-- Send an email to yourself with:
+- Use the Gmail connector to **send** the email (do NOT create a draft — call the send action directly)
+- Send to: krishsingh@starsportal.org
   - **Subject**: `[Instagram Analysis] {title}`
   - **Body**: The full analysis formatted as readable text (not raw JSON), structured like:
 
