@@ -5,8 +5,11 @@ require('dotenv').config();
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const BASE_URL = process.env.BASE_URL || `https://instagram-pipeline.onrender.com`;
 
-// Middleware
+// In-memory video store: id -> buffer (cleared after 1 hour)
+const videoStore = new Map();
+
 app.use(express.json());
 
 // Health check endpoint
@@ -14,26 +17,27 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+// Serve temporarily stored videos
+app.get('/video/:id', (req, res) => {
+  const buf = videoStore.get(req.params.id);
+  if (!buf) return res.status(404).send('Not found or expired');
+  res.set('Content-Type', 'video/mp4');
+  res.send(buf);
+});
+
 // Telegram webhook endpoint
 app.post('/webhook', async (req, res) => {
   try {
-    // Return 200 immediately to Telegram
     res.status(200).json({ ok: true });
-
-    // Process the message asynchronously
     processMessage(req.body).catch(err => {
       console.error('Error processing message:', err);
     });
   } catch (error) {
     console.error('Webhook error:', error);
-    res.status(200).json({ ok: true }); // Still return 200 to Telegram
+    res.status(200).json({ ok: true });
   }
 });
 
-/**
- * Process incoming Telegram message
- * Extracts video, downloads it, and triggers Claude Code Routine
- */
 const INSTAGRAM_REGEX = /https?:\/\/(www\.)?instagram\.com\/(p|reel|tv)\/[A-Za-z0-9_-]+\/?/;
 
 async function processMessage(update) {
@@ -45,7 +49,6 @@ async function processMessage(update) {
     const timestamp = new Date(message.date * 1000).toISOString();
     const chatId = message.chat.id;
 
-    // Handle Instagram links in text or caption
     const text = message.text || message.caption || '';
     const instagramMatch = text.match(INSTAGRAM_REGEX);
 
@@ -53,12 +56,11 @@ async function processMessage(update) {
       const instagramUrl = instagramMatch[0];
       console.log(`Processing Instagram link from chat ${chatId}: ${instagramUrl}`);
 
-      // Resolve Instagram URL to direct MP4 via RapidAPI
-      const directUrl = await resolveInstagramUrl(instagramUrl);
-      console.log(`Resolved to direct URL: ${directUrl}`);
+      const hostedUrl = await resolveAndHostVideo(instagramUrl);
+      console.log(`Hosted video at: ${hostedUrl}`);
 
       await triggerClaudeRoutine({
-        video_url: directUrl,
+        video_url: hostedUrl,
         caption: text,
         message_id: messageId,
         timestamp: timestamp,
@@ -70,7 +72,6 @@ async function processMessage(update) {
       return;
     }
 
-    // Handle direct video file uploads
     if (!update.message.video) {
       console.log('No video or Instagram link in message, skipping');
       return;
@@ -80,18 +81,10 @@ async function processMessage(update) {
     const caption = message.caption || '';
 
     console.log(`Processing video from chat ${chatId}, message ${messageId}`);
-    console.log(`Caption: ${caption}`);
-    console.log(`Video file_id: ${video.file_id}`);
 
-    // Step 1: Get file path from Telegram
     const fileInfo = await getTelegramFile(video.file_id);
-
-    // Step 2: Download video from Telegram
     const videoUrl = await downloadTelegramFile(fileInfo.file_path);
 
-    console.log(`Downloaded video: ${videoUrl}`);
-
-    // Step 3: Call Claude Code Routine API trigger
     await triggerClaudeRoutine({
       video_url: videoUrl,
       caption: caption,
@@ -105,17 +98,17 @@ async function processMessage(update) {
 
   } catch (error) {
     console.error('Error in processMessage:', error);
-    // Don't throw - we already returned 200 to Telegram
   }
 }
 
 /**
- * Resolve Instagram URL to direct MP4 download URL via RapidAPI
+ * Download Instagram video via RapidAPI and host it on this server
  */
-async function resolveInstagramUrl(instagramUrl) {
+async function resolveAndHostVideo(instagramUrl) {
   const rapidApiKey = process.env.RAPIDAPI_KEY;
   if (!rapidApiKey) throw new Error('RAPIDAPI_KEY not set');
 
+  // Step 1: Get CDN URL from RapidAPI
   const encodedUrl = encodeURIComponent(instagramUrl);
   const response = await fetch(
     `https://instagram-post-reels-stories-downloader-api.p.rapidapi.com/instagram/?url=${encodedUrl}`,
@@ -136,89 +129,54 @@ async function resolveInstagramUrl(instagramUrl) {
   }
 
   const cdnUrl = data.result[0].url;
+  console.log('Downloading video from CDN...');
 
-  // Download and re-upload to transfer.sh so the URL is not IP-locked
-  console.log('Downloading video to re-host...');
+  // Step 2: Download the video buffer
   const videoResponse = await fetch(cdnUrl);
   if (!videoResponse.ok) throw new Error(`Failed to download video: ${videoResponse.status}`);
 
   const videoBuffer = await videoResponse.buffer();
+  console.log(`Downloaded ${videoBuffer.length} bytes`);
 
-  const uploadResponse = await fetch('https://transfer.sh/video.mp4', {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'video/mp4',
-      'Max-Days': '1'
-    },
-    body: videoBuffer
-  });
+  // Step 3: Store in memory and return a public URL via this server
+  const id = uuidv4();
+  videoStore.set(id, videoBuffer);
 
-  if (!uploadResponse.ok) throw new Error(`transfer.sh upload failed: ${uploadResponse.status}`);
+  // Auto-delete after 1 hour
+  setTimeout(() => videoStore.delete(id), 60 * 60 * 1000);
 
-  const publicUrl = await uploadResponse.text();
-  console.log(`Re-hosted at: ${publicUrl.trim()}`);
-  return publicUrl.trim();
+  return `${BASE_URL}/video/${id}`;
 }
 
-/**
- * Get file information from Telegram Bot API
- */
 async function getTelegramFile(fileId) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
-  if (!botToken) {
-    throw new Error('TELEGRAM_BOT_TOKEN not set');
-  }
+  if (!botToken) throw new Error('TELEGRAM_BOT_TOKEN not set');
 
-  const url = `https://api.telegram.org/bot${botToken}/getFile`;
-
-  const response = await fetch(url, {
+  const response = await fetch(`https://api.telegram.org/bot${botToken}/getFile`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ file_id: fileId })
   });
 
-  if (!response.ok) {
-    throw new Error(`Telegram getFile failed: ${response.status} ${response.statusText}`);
-  }
+  if (!response.ok) throw new Error(`Telegram getFile failed: ${response.status}`);
 
   const data = await response.json();
-
-  if (!data.ok) {
-    throw new Error(`Telegram API error: ${data.description}`);
-  }
+  if (!data.ok) throw new Error(`Telegram API error: ${data.description}`);
 
   return data.result;
 }
 
-/**
- * Download file from Telegram servers
- * Returns a public URL that the Routine can access
- */
 async function downloadTelegramFile(filePath) {
   const botToken = process.env.TELEGRAM_BOT_TOKEN;
-
-  // Return direct Telegram CDN URL that Claude Code Routine can fetch from
-  // This avoids needing to store the file ourselves
-  const telegramFileUrl = `https://api.telegram.org/file/bot${botToken}/${filePath}`;
-
-  return telegramFileUrl;
+  return `https://api.telegram.org/file/bot${botToken}/${filePath}`;
 }
 
-/**
- * Trigger Claude Code Routine via API
- * POSTs to the Routine's API endpoint with the video info
- */
 async function triggerClaudeRoutine(payload) {
   const routineEndpoint = process.env.ROUTINE_API_ENDPOINT;
   const bearerToken = process.env.ROUTINE_BEARER_TOKEN;
 
-  if (!routineEndpoint) {
-    throw new Error('ROUTINE_API_ENDPOINT not set');
-  }
-
-  if (!bearerToken) {
-    throw new Error('ROUTINE_BEARER_TOKEN not set');
-  }
+  if (!routineEndpoint) throw new Error('ROUTINE_API_ENDPOINT not set');
+  if (!bearerToken) throw new Error('ROUTINE_BEARER_TOKEN not set');
 
   const triggerPayload = {
     text: `Analyze this Instagram video: ${payload.video_url}\nCaption: ${payload.caption || 'none'}\nTimestamp: ${payload.timestamp}`
@@ -244,17 +202,14 @@ async function triggerClaudeRoutine(payload) {
 
   const result = await response.json();
   console.log('Routine triggered successfully:', result);
-
   return result;
 }
 
-// Error handler middleware
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
-  res.status(200).json({ ok: true }); // Still return 200 to Telegram
+  res.status(200).json({ ok: true });
 });
 
-// Start server
 app.listen(PORT, () => {
   console.log(`Webhook server listening on port ${PORT}`);
   console.log(`Telegram webhook: POST /webhook`);
