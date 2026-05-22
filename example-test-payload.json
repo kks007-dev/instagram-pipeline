@@ -1,9 +1,3 @@
 {
-  "video_url": "https://api.telegram.org/file/bot123456789:ABCDefGHIjklmnoPQRstUVwxyZ/videos/file_12345.mp4",
-  "caption": "Check out this amazing discussion about AI and machine learning",
-  "message_id": 42,
-  "timestamp": "2026-05-08T15:30:00Z",
-  "chat_id": 987654321,
-  "file_id": "AgADBAADjqcxGylzBqoFrBZkgvC_I9F1xRoABHRV0-ZZj7XKF4cBAAEC",
-  "trigger_id": "550e8400-e29b-41d4-a716-446655440000"
+  "text": "{\"instagram_url\":\"https://www.instagram.com/reel/ABC123/\",\"note\":\"Test analysis\",\"message_id\":42,\"timestamp\":\"2026-05-22T15:30:00Z\",\"trigger_id\":\"550e8400-e29b-41d4-a716-446655440000\"}"
 }
